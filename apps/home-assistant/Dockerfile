@@ -108,6 +108,8 @@ RUN \
     && apk del --purge .build-deps \
     && rm -rf /root/.cache /root/.cargo /tmp/*
 
+RUN /bin/sed -i '/self\.negotiate_unix_fd = negotiate_unix_fd/a \        self.uid = UID_NOT_SPECIFIED' /usr/local/lib/python3.13/site-packages/dbus_fast/auth.py
+
 COPY ./apps/home-assistant/entrypoint.sh /entrypoint.sh
 
 USER nobody:nogroup
