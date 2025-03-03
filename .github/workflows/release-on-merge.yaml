@@ -31,7 +31,7 @@ jobs:
     with:
       appsToBuild: "${{ needs.get-changed-images.outputs.addedOrModifiedImages }}"
       pushImages: true
-      sendNotifications: true
+      sendNotifications: false
 
   render-readme:
     name: Render Readme
