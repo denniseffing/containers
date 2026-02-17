@@ -6,7 +6,7 @@ variable "APP" {
 
 variable "VERSION" {
   // renovate: datasource=github-releases depName=aws/rolesanywhere-credential-helper
-  default = "1.7.0"
+  default = "1.7.3"
 }
 
 variable "SOURCE" {
