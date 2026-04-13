@@ -18,7 +18,7 @@ RUN \
         libc6-compat \
         libgcc \
     && mkdir -p /app/bin \
-    && curl -fsSL -o /tmp/aws-signing-helper "https://rolesanywhere.amazonaws.com/releases/${VERSION}/${ARCH}/Linux/aws_signing_helper" \
+    && curl -fsSL -o /tmp/aws-signing-helper "https://rolesanywhere.amazonaws.com/releases/${VERSION}/${ARCH}/Linux/Amzn2023/aws_signing_helper" \
     && mv -t /app/bin /tmp/aws-signing-helper \
     && chown -R root:root /app  \
     && chmod -R 755 /app \
