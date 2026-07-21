@@ -1,4 +1,4 @@
-FROM alpine:3.22.1
+FROM alpine:3.24.1
 
 ARG TARGETARCH
 ARG ARCH=${TARGETARCH/arm64/Aarch64}
