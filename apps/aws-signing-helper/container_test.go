@@ -1,14 +1,12 @@
 package main
 
 import (
-	"context"
 	"testing"
 
-	"github.com/home-operations/containers/testhelpers"
+	helpers "github.com/home-operations/containers/tests"
 )
 
 func Test(t *testing.T) {
-	ctx := context.Background()
-	image := testhelpers.GetTestImage("ghcr.io/denniseffing/aws-signing-helper:rolling")
-	testhelpers.TestFileExists(t, ctx, image, "/app/bin/aws-signing-helper", nil)
+	image := helpers.GetTestImage("ghcr.io/denniseffing/aws-signing-helper:rolling")
+	helpers.RequireFileExists(t, image, "/app/bin/aws-signing-helper")
 }
