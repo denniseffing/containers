@@ -11,28 +11,37 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prepare:
     name: Prepare
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     outputs:
-      changed-files: ${{ steps.changed-files.outputs.changed_files }}
+      changed-files: ${{ steps.changed-files.outputs.all_changed_files }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Get changed files
-        uses: bjw-s-labs/action-changed-files@a9a36fb08ce06db9b02fbd8026cc2c0945eb9841 # v0.6.0
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         id: changed-files
         with:
+          dir_names: true
+          dir_names_exclude_current_dir: true
+          dir_names_max_depth: 1
+          escape_json: false
+          json: true
           path: apps
-          include_only_directories: true
-          max_depth: 1
 
   go-check:
     name: Go Compile & Vet
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -42,7 +51,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
           experimental: true
           install_args: --locked
@@ -61,9 +70,9 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-  hadolint:
-    name: Hadolint
-    runs-on: ubuntu-24.04
+  droast:
+    name: Droast
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -73,23 +82,24 @@ jobs:
           persist-credentials: false
 
       - name: Setup Mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
           experimental: true
           install_args: --locked
 
-      - name: Hadolint
-        run: git ls-files -z '*Dockerfile' | xargs -0 -r hadolint
+      - name: Droast
+        run: droast .
 
   build:
     if: ${{ needs.prepare.outputs.changed-files != '[]' }}
     name: Build ${{ matrix.app }}
     needs:
       - prepare
-    uses: ./.github/workflows/app-builder.yaml
+    uses: $/.github/workflows/app-builder.yaml
     permissions:
+      artifact-metadata: write
       attestations: write
-      contents: read
+      contents: write
       id-token: write
       packages: write
     strategy:
@@ -101,22 +111,55 @@ jobs:
       app: ${{ matrix.app }}
       release: false
 
+  workflow-lint:
+    name: Workflow Lint
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Mise
+        uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+        with:
+          install: false
+
+      - name: Resolve linter versions
+        id: tools
+        run: |
+          echo "actionlint=$(mise config get tools.actionlint)" >> "$GITHUB_OUTPUT"
+          echo "zizmor=$(mise config get tools.zizmor)" >> "$GITHUB_OUTPUT"
+
+      - name: Lint workflows
+        uses: home-operations/.github/actions/workflow-lint@1d6eebfd2066f2aa84939e573e56f60d8d2ed85f # workflow-lint-v1.0.4
+        with:
+          actionlint-version: ${{ steps.tools.outputs.actionlint }}
+          zizmor-version: ${{ steps.tools.outputs.zizmor }}
+
   status:
     if: ${{ !cancelled() }}
     name: Build Success
     needs:
       - build
+      - droast
       - go-check
-      - hadolint
-    runs-on: ubuntu-24.04
+      - prepare
+      - workflow-lint
+    runs-on: ubuntu-26.04
     permissions: {}
     steps:
+      # cancelled counts as failed: !cancelled() above still runs this job when
+      # individual needs were cancelled but the run was not, and a required job
+      # that never reached a verdict must not clear the merge gate.
       - name: Any jobs failed?
-        if: ${{ contains(needs.*.result, 'failure') }}
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: |
           exit 1
 
       - name: All jobs passed or skipped?
-        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
         run: |
           echo "All jobs passed or skipped" && echo "${{ toJSON(needs.*.result) }}"
